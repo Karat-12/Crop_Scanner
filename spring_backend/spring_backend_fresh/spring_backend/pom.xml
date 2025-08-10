@@ -9,11 +9,11 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.example</groupId>
-	<artifactId>backend</artifactId>
+	<artifactId>spring_backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>backend</name>
+	<name>spring_backend</name>
 	<description>Demo project for Spring Boot</description>
-	<url/>
+<url/>
 	<licenses>
 		<license/>
 	</licenses>

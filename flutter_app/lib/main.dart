@@ -1,119 +1,93 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 
-void main() {
-  runApp(MyApp());
+void main() => runApp(MyApp());
+
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class _MyAppState extends State<MyApp> {
+  File? _image;
+  String _result = '';
+
+  final picker = ImagePicker();
+
+  Future pickImage() async {
+    try {
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+      if (pickedFile == null) {
+        setState(() {
+          _result = 'No image selected.';
+        });
+        return;
+      }
+
+      setState(() {
+        _image = File(pickedFile.path);
+        _result = 'Uploading...';
+      });
+
+      await uploadImage(_image!);
+    } catch (e, stackTrace) {
+      print('Error in pickImage: $e');
+      print(stackTrace);
+      setState(() {
+        _result = 'Error picking image: $e';
+      });
+    }
+  }
+
+Future uploadImage(File imageFile) async {
+  final uri = Uri.parse('http://10.0.2.2:8080/api/crop/analyze');  // Correct endpoint
+  var request = http.MultipartRequest('POST', uri);
+
+  request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));  // Correct param name
+
+  try {
+    print('Sending request to $uri ...');
+    var response = await request.send();
+    print('Response status: ${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      var respStr = await response.stream.bytesToString();
+      print('Response body: $respStr');
+      setState(() {
+        _result = 'Result: $respStr';
+      });
+    } else {
+      setState(() {
+        _result = 'Error: Server returned ${response.statusCode}';
+      });
+    }
+  } catch (e) {
+    print('Upload exception: $e');
+    setState(() {
+      _result = 'Exception during upload: $e';
+    });
+  }
+}
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Crop Analyzer',
-      theme: ThemeData(primarySwatch: Colors.green),
-      home: CropAnalyzerPage(),
-    );
-  }
-}
-
-class CropAnalyzerPage extends StatefulWidget {
-  const CropAnalyzerPage({super.key});
-
-  @override
-  createState() => _CropAnalyzerPageState();
-}
-
-class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
-  File? _image;
-  String? _result;
-  bool _isLoading = false;
-
-  final ImagePicker _picker = ImagePicker();
-
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
-    }
-  }
-
-  Future<void> _analyzeImage() async {
-    if (_image == null) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse(
-          'http://10.0.2.2:8080/api/crop/analyze',
-        ), // use 10.0.2.2 for Android emulator
-      );
-
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'file', // must match your @RequestParam name in Spring Boot
-          _image!.path,
-        ),
-      );
-
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        var jsonResponse = jsonDecode(response.body);
-        setState(() {
-          _result = jsonEncode(jsonResponse, toEncodable: (e) => e.toString());
-        });
-      } else {
-        setState(() {
-          _result = 'Error: ${response.statusCode} - ${response.body}';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _result = 'Error: $e';
-      });
-    }
-
-    setState(() {
-      _isLoading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Crop Analyzer')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            if (_image != null) Image.file(_image!, height: 200),
-            SizedBox(height: 16),
-            ElevatedButton(onPressed: _pickImage, child: Text('Pick Image')),
-            SizedBox(height: 8),
-            ElevatedButton(onPressed: _analyzeImage, child: Text('Analyze')),
-            SizedBox(height: 16),
-            if (_isLoading) CircularProgressIndicator(),
-            if (_result != null)
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Text(_result ?? '', style: TextStyle(fontSize: 14)),
-                ),
-              ),
-          ],
+      home: Scaffold(
+        appBar: AppBar(title: Text('Crop Analyze')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _image == null ? Text('No image selected.') : Image.file(_image!),
+              SizedBox(height: 20),
+              ElevatedButton(onPressed: pickImage, child: Text('Pick Image')),
+              SizedBox(height: 20),
+              Text(_result),
+            ],
+          ),
         ),
       ),
     );

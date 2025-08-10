@@ -1,6 +1,6 @@
-package com.example.backend.controller;
+package com.example.spring_backend.controller;
 
-import com.example.backend.service.CropService;
+import com.example.spring_backend.service.CropService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +21,7 @@ public class CropController {
 
     // POST endpoint to analyze crop image
     @PostMapping("/analyze")
-    public ResponseEntity<String> analyzeCrop(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> analyzeCrop(@RequestParam MultipartFile file) {
         try {
             String result = cropService.sendImageToAI(file);
             return ResponseEntity.ok(result);

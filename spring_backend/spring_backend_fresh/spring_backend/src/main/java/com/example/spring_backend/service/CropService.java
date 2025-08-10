@@ -1,4 +1,4 @@
-package com.example.backend.service;
+package com.example.spring_backend.service;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;

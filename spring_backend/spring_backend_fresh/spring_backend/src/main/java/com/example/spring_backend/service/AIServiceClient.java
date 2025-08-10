@@ -1,4 +1,4 @@
-package com.example.backend.service;
+package com.example.spring_backend.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
