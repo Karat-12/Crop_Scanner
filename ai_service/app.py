@@ -1,58 +1,66 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
 from io import BytesIO
 from PIL import Image
 import numpy as np
+import tensorflow as tf
+import json
+import os
 
-app = FastAPI(title="Simple Crop Analyzer")
+app = FastAPI(title="Crop Disease Analyzer")
 
-# Allow all origins (only for development)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Load MLP model
+model = tf.keras.models.load_model("plant_disease_mlp.h5")
 
-@app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
-    """Accepts an image file and returns a simple greenness-based analysis."""
-    contents = await file.read()
+# Load class names from JSON
+with open("class_names.json", "r") as f:
+    CLASS_LABELS = json.load(f)
+
+@app.get("/api/crop/test")
+async def test_api():
+    return {"message": "Crop AI service is running!"}
+
+@app.post("/api/crop/analyze")
+async def analyze_crop(file: UploadFile = File(...)):
     try:
+        # Read uploaded file
+        contents = await file.read()
         img = Image.open(BytesIO(contents)).convert("RGB")
-        arr = np.array(img)
 
-        # Calculate average color values
-        r_mean = float(arr[:, :, 0].mean())
-        g_mean = float(arr[:, :, 1].mean())
-        b_mean = float(arr[:, :, 2].mean())
+        # Resize to 64x64 for MLP
+        img = img.resize((64, 64))
+        arr = np.array(img) / 255.0  # normalize
 
-        # Simple heuristic for plant health
-        green_ratio = g_mean / (r_mean + b_mean + 1e-6)
-        if green_ratio > 1.1 and g_mean > 80:
-            health = "Healthy Vegetation"
-            nutrition = "Likely sufficient nitrogen"
-        elif green_ratio > 0.95:
-            health = "Moderately healthy"
-            nutrition = "Possible mild nitrogen deficiency"
-        else:
-            health = "Poor Vegetation / Dry"
-            nutrition = "Likely nitrogen deficient"
+        # Flatten for MLP input
+        arr = arr.flatten()[np.newaxis, :]  # shape (1, 64*64*3)
 
-        return JSONResponse(content={
-            "crop": "Unknown",
-            "health": health,
-            "nutrition": nutrition,
+        # Make prediction
+        preds = model.predict(arr)
+        pred_index = int(np.argmax(preds, axis=1)[0])
+
+        # Safe label lookup
+        pred_label = CLASS_LABELS[pred_index] if pred_index < len(CLASS_LABELS) else "Unknown"
+
+        confidence = float(preds[0][pred_index]) * 100
+
+        # Compute simple metrics
+        r_mean = float(arr[0][0::3].mean())
+        g_mean = float(arr[0][1::3].mean())
+        b_mean = float(arr[0][2::3].mean())
+
+        response = {
+            "crop": pred_label,
+            "health": "Healthy" if "healthy" in pred_label.lower() else "Diseased",
+            "nutrition": "Total Diseased" if "healthy" not in pred_label.lower() else "N/A",
             "metrics": {
-                "r_mean": r_mean,
-                "g_mean": g_mean,
-                "b_mean": b_mean,
-                "green_ratio": green_ratio
-            }
-        })
+                "r_mean": round(r_mean, 2),
+                "g_mean": round(g_mean, 2),
+                "b_mean": round(b_mean, 2)
+            },
+            "disease_percentage": round(confidence, 2)
+        }
+
+        return JSONResponse(content=response)
+
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
-@app.get("/test")
-async def test():
-    return {"status": "AI service is running!"}
+        return JSONResponse(content={"error": str(e)}, status_code=500)
