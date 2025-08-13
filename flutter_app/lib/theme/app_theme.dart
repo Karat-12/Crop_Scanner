@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color primary = Color(0xFF4CAF50); // Green
-  static const Color secondary = Color(0xFF8BC34A);
+  static const Color primary = Color(0xFF1ABC9C); // Vibrant teal
+  static const Color secondary = Color(0xFF16A085); // Slightly darker teal
   static const Color background = Color(0xFF121212); // Dark background
-  static const Color cardBackground = Color(0xFF1E1E1E); // Darker cards
+  static const Color cardBackground = Color(0xFF1E1E2F); // Darker cards
   static const Color textPrimary = Colors.white;
-  static const Color textSecondary = Colors.white70;
-  static const Color accent = Color(0xFF69F0AE); // Light green accent
+  static const Color textSecondary = Color(0xFFB0BEC5); // Soft gray
+  static const Color accent = Color(0xFFF1C40F); // Warm accent (lime/orange)
+  static const Color healthy = Color(0xFF2ECC71); // Green for Healthy
+  static const Color diseased = Color(0xFFE74C3C); // Red for Diseased
 }
 
 class AppTheme {
@@ -18,7 +20,7 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
         elevation: 4,
         centerTitle: true,
       ),

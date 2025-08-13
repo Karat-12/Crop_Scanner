@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'config.dart'; // make sure BASE_URL is defined
+import 'theme/app_theme.dart'; // Import the custom theme
 
 class CropAnalyzerPage extends StatefulWidget {
   @override
@@ -40,7 +42,7 @@ class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
   }
 
   Future uploadImage(File imageFile) async {
-    final uri = Uri.parse('http://10.144.248.37:8000/api/crop/analyze'); // update IP
+    final uri = Uri.parse('$BASE_URL/analyze'); // from config.dart
     var request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
 
@@ -54,7 +56,6 @@ class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
           "crop": jsonResp["crop"] ?? "Unknown",
           "health": jsonResp["health"] ?? "Unknown",
           "disease_percentage": jsonResp["disease_percentage"] ?? 0.0,
-          "metrics": jsonResp["metrics"] ?? {},
         };
 
         _updateState(result: safeResult, message: '', loading: false);
@@ -66,94 +67,74 @@ class _CropAnalyzerPageState extends State<CropAnalyzerPage> {
     }
   }
 
+  Color getHealthColor(String health) {
+    return health.toLowerCase() == 'healthy'
+        ? AppColors.healthy
+        : AppColors.diseased;
+  }
+
+  Widget _infoCard(String title, String value, {Color? valueColor}) => Card(
+        color: AppColors.cardBackground,
+        margin: EdgeInsets.symmetric(vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+          child: Row(
+            children: [
+              Text('$title:', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent, fontSize: 20)),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  value,
+                  style: TextStyle(color: valueColor ?? AppColors.textPrimary, fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final green = Colors.green;
-    final greenAccent = Colors.greenAccent;
-
-    Widget _infoCard(String title, String? value) => Card(
-      color: green[900],
-      margin: EdgeInsets.symmetric(vertical: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-        child: Row(
-          children: [
-            Text('$title:', style: TextStyle(fontWeight: FontWeight.bold, color: greenAccent.shade400, fontSize: 20)),
-            SizedBox(width: 12),
-            Expanded(child: Text(value ?? 'N/A', style: TextStyle(color: Colors.white, fontSize: 18))),
-          ],
-        ),
-      ),
-    );
-
-    Widget _metricsCard(Map<String, dynamic> metrics) => Card(
-      color: green[900],
-      margin: EdgeInsets.symmetric(vertical: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Metrics', style: TextStyle(fontWeight: FontWeight.bold, color: greenAccent.shade400, fontSize: 20)),
-            SizedBox(height: 12),
-            ...metrics.entries.map((e) => Row(
-              children: [
-                Expanded(flex: 3, child: Text(e.key, style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white70))),
-                Expanded(flex: 2, child: Text(
-                  (e.value is double) ? e.value.toStringAsFixed(2) : e.value.toString(),
-                  textAlign: TextAlign.right,
-                  style: TextStyle(color: Colors.white70),
-                )),
-              ],
-            )),
-          ],
-        ),
-      ),
-    );
-
     return Scaffold(
-      appBar: AppBar(title: Text('Crop Analyzer'), centerTitle: true, backgroundColor: green[700]),
+      appBar: AppBar(title: Text('Crop Analyzer'), centerTitle: true),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(16),
           child: Column(
             children: [
               Container(
-                height: 250,
+                height: 220,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  color: green[900],
-                  border: Border.all(color: greenAccent, width: 2),
+                  color: AppColors.cardBackground,
+                  border: Border.all(color: AppColors.secondary, width: 2),
                 ),
                 child: _image == null
-                    ? Center(child: Text('No image selected', style: TextStyle(color: greenAccent.shade400, fontSize: 22, fontWeight: FontWeight.bold)))
+                    ? Center(
+                        child: Text(
+                          'No image selected',
+                          style: TextStyle(color: AppColors.secondary, fontSize: 22, fontWeight: FontWeight.bold),
+                        ),
+                      )
                     : ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.file(_image!, fit: BoxFit.cover)),
               ),
               SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isLoading ? null : pickImage,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: greenAccent.shade700,
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                ),
                 child: _isLoading
                     ? SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3))
-                    : Text('Pick Image', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
+                    : Text('Pick Image'),
               ),
               SizedBox(height: 24),
               if (!_isLoading && _parsedResult == null)
-                Text(_resultMessage, style: TextStyle(fontSize: 18, color: greenAccent.shade400, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-              if (_parsedResult != null)
-                ...[
-                  _infoCard('Crop', _parsedResult!['crop']),
-                  _infoCard('Health', _parsedResult!['health']),
-                  _infoCard('Disease %', _parsedResult!['disease_percentage'].toString()),
-                  if (_parsedResult!['metrics'] != null) _metricsCard(_parsedResult!['metrics']),
-                ]
+                Text(_resultMessage, style: TextStyle(fontSize: 18, color: AppColors.secondary, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+              if (_parsedResult != null) ...[
+                _infoCard('Crop', _parsedResult!['crop']),
+                _infoCard('Health', _parsedResult!['health'], valueColor: getHealthColor(_parsedResult!['health'])),
+                _infoCard('Disease %', _parsedResult!['disease_percentage'].toStringAsFixed(2) + '%'),
+              ]
             ],
           ),
         ),

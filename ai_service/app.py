@@ -5,14 +5,13 @@ from PIL import Image
 import numpy as np
 import tensorflow as tf
 import json
-import os
 
-app = FastAPI(title="Crop Disease Analyzer")
+app = FastAPI(title="Crop Disease Analyzer (No CNN)")
 
 # Load MLP model
 model = tf.keras.models.load_model("plant_disease_mlp.h5")
 
-# Load class names from JSON
+# Load class names
 with open("class_names.json", "r") as f:
     CLASS_LABELS = json.load(f)
 
@@ -26,38 +25,34 @@ async def analyze_crop(file: UploadFile = File(...)):
         # Read uploaded file
         contents = await file.read()
         img = Image.open(BytesIO(contents)).convert("RGB")
+        img = img.resize((64, 64))  # MLP input size
+        arr = np.array(img) / 255.0
+        arr = arr.flatten()[np.newaxis, :]
 
-        # Resize to 64x64 for MLP
-        img = img.resize((64, 64))
-        arr = np.array(img) / 255.0  # normalize
-
-        # Flatten for MLP input
-        arr = arr.flatten()[np.newaxis, :]  # shape (1, 64*64*3)
-
-        # Make prediction
+        # MLP prediction
         preds = model.predict(arr)
         pred_index = int(np.argmax(preds, axis=1)[0])
+        pred_prob = float(preds[0][pred_index]) * 100
 
-        # Safe label lookup
-        pred_label = CLASS_LABELS[pred_index] if pred_index < len(CLASS_LABELS) else "Unknown"
+        # Extract crop and disease
+        pred_label = CLASS_LABELS[pred_index]
+        if "_" in pred_label:
+            parts = pred_label.split("_")
+            crop_name = parts[0]
+            disease_name = "_".join(parts[1:]) if len(parts) > 1 else "Healthy"
+        else:
+            crop_name = pred_label
+            disease_name = "Healthy"
 
-        confidence = float(preds[0][pred_index]) * 100
-
-        # Compute simple metrics
-        r_mean = float(arr[0][0::3].mean())
-        g_mean = float(arr[0][1::3].mean())
-        b_mean = float(arr[0][2::3].mean())
+        # Disease percentage
+        disease_percentage = round(pred_prob, 2)
+        health_status = "Healthy" if disease_name.lower() in ["healthy", "none"] else "Diseased"
 
         response = {
-            "crop": pred_label,
-            "health": "Healthy" if "healthy" in pred_label.lower() else "Diseased",
-            "nutrition": "Total Diseased" if "healthy" not in pred_label.lower() else "N/A",
-            "metrics": {
-                "r_mean": round(r_mean, 2),
-                "g_mean": round(g_mean, 2),
-                "b_mean": round(b_mean, 2)
-            },
-            "disease_percentage": round(confidence, 2)
+            "crop": crop_name,
+            "disease": disease_name,
+            "health": health_status,
+            "disease_percentage": disease_percentage
         }
 
         return JSONResponse(content=response)
